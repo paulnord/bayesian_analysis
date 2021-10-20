@@ -1,7 +1,9 @@
 #!/opt/anaconda3/bin/python3
+import sys
 import pystan
 import pandas as pd
 import pickle
+import numpy as np
 
 import multiprocessing
 multiprocessing.set_start_method("fork")
@@ -9,8 +11,8 @@ multiprocessing.set_start_method("fork")
 model = """
 data {
     int<lower=0> N;
-    vector[N] a;
-    int d[N];
+    vector[N] stop;
+    int count[N];
 }
 parameters {
     real<lower=0> A0;  // Initial number of atoms a 
@@ -21,34 +23,48 @@ parameters {
 }
 model {
     for(n in 1:N) {
-        d[n] ~ poisson( A0 + A1 -  A0*(0.5^((a[n])/t0)) - A1*(0.5^((a[n])/t1)) + background*a[n] );
+        count[n] ~ poisson( A0 + A1 -  A0*(0.5^((stop[n])/t0)) - A1*(0.5^((stop[n])/t1)) + background*stop[n] );
     }
 }
 """
 
-def main():
+def main(filename):
 
-    df = pd.read_csv("my_data.csv")
-    x = df["t"].to_numpy()
-    y = df["count"].to_numpy()
+    df = pd.read_csv(filename+".csv")
+    t = df["t"].to_numpy()
+    count = df["count"].to_numpy()
+    d = [0]*len(count)
+
+    x2 = t
+    x1 = np.insert(t, [0], [0.0])[0:len(t)]
+
+
+    d[0] = count[0]
+    for i in range(1,len(t)):
+        d[i] = count[i] - count[i-1]
 
     # Put our data in a dictionary
-    data = {'N': len(x), 'a': x, 'd': y}
+    data = {'N': len(t), 'start': x1, 'stop': x2, 'd': d, 'count': count}
 
     # Compile the model
     sm = pystan.StanModel(model_code=model)
 
     # Train the model and generate samples
 
-    fit = sm.sampling(data=data, iter=2000, chains=5, warmup=1000, thin=1, seed=91801, n_jobs=4, control=dict(adapt_delta=0.9))
+    fit = sm.sampling(data=data, iter=2000, chains=5, warmup=1000, thin=1, seed=91801, n_jobs=4, control=dict(adapt_delta=0.9,max_treedepth=15))
 
-    pickle.dump( sm, open( "model.p", "wb" ) )
-    pickle.dump( fit, open( "fit.p", "wb" ) )
-    pickle.dump( data, open( "data.p", "wb" ) )
+    pickle.dump( sm, open( filename+"_model.p", "wb" ) )
+    pickle.dump( fit, open( filename+"_fit.p", "wb" ) )
+    pickle.dump( data, open( filename+"_data.p", "wb" ) )
 
 ## Diagnostics #################################################################
 
     print(fit)
 
 if __name__ == '__main__':
-    main()
+    if len(sys.argv) > 1:
+        filename = sys.argv[1]
+    else:
+        filename = 'my_data'
+    print(filename)
+    main(filename)

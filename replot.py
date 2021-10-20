@@ -1,10 +1,12 @@
 #!/opt/anaconda3/bin/python3
+import sys
 import pickle
 import pystan
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import pickle
+from scipy.stats import chisquare
 from plot_trace import plot_trace
 
 
@@ -18,14 +20,14 @@ def theory_curve(x, A0, t0, A1, t1, background, C=0):
 
 ## Diagnostics #################################################################
 
-def replot():
+def replot(filename="my_data"):
 
-    sm = pickle.load(open("model.p","rb"))
-    fit = pickle.load(open("fit.p","rb"))
-    data = pickle.load(open("data.p","rb"))
+    sm = pickle.load(open(filename+"_model.p","rb"))
+    fit = pickle.load(open(filename+"_fit.p","rb"))
+    data = pickle.load(open(filename+"_data.p","rb"))
 
-    x = data['a']
-    y = data['d']
+    x = data['stop']
+    y = data['count']
 
     summary_dict = fit.summary()
     df = pd.DataFrame(summary_dict['summary'], 
@@ -68,7 +70,7 @@ def replot():
     # Plot a subset of sampled regression lines
     for i in np.random.randint(0, len(A0), 1000):
       plt.plot(x_plot, theory_curve(x_plot,A0[i],t0[i],A1[i],t1[i],background[i],C[i]), color='lightsteelblue', 
-               alpha=0.005, linewidth=1)
+               alpha=0.005, linewidth=2)
 
     # Plot mean regression line
     plt.plot(x_plot, theory_curve(x_plot,A0_mean,t0_mean,A1_mean,t1_mean,background_mean,C_mean))
@@ -92,7 +94,7 @@ def replot():
     # Plot a subset of sampled regression lines
     for i in np.random.randint(0, len(A0), 1000):
       plt.plot(x_plot, theory_curve(x_plot,A0[i],t0[i],A1[i],t1[i],background[i],C[i]), color='lightsteelblue', 
-               alpha=0.005, linewidth=1)
+               alpha=0.005, linewidth=2)
 
     # Plot mean regression line
     plt.plot(x_plot, theory_curve(x_plot,A0_mean,t0_mean,A1_mean,t1_mean,background_mean,C_mean))
@@ -108,7 +110,12 @@ def replot():
     plt.subplot(212)
     plt.xlabel('$time     (minutes)$')
     plt.ylabel('$residual$')
+    theory_at_data= theory_curve(x,A0_mean,t0_mean,A1_mean,t1_mean,background_mean,C_mean)
     residuals = y - theory_curve(x,A0_mean,t0_mean,A1_mean,t1_mean,background_mean,C_mean)
+    chi_square = sum((residuals**2)/theory_at_data)
+    print("Chi Square = ", chi_square)
+    print("Reduced Chi Square = ", chi_square/(len(y)-len(df)+1))
+    print(chisquare(y,theory_at_data,len(df)-1))
     plt.xscale("log")
     plt.scatter(x,residuals)
     plt.show()
@@ -119,4 +126,9 @@ def replot():
         plt.show()
 
 if __name__ == '__main__':
-    replot()
+    if len(sys.argv) > 1:
+        filename = sys.argv[1]
+    else:
+        filename = 'my_data'
+    print(filename)
+    replot(filename)
