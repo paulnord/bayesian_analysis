@@ -6,3 +6,6 @@ python cdf_pub.py
 Make some plots of what you've done
 
 python replot.py
+
+Alternate analysis method cdf_stepwise.py uses differential counts expected in a particular interval.
+This seems to get similar answers.  It's unclear which method is better.
